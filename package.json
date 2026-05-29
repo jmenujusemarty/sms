@@ -1,0 +1,16 @@
+{
+  "name": "macos-sms-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "server": "node src/server.js",
+    "dispatch": "node src/dispatcher.js --once",
+    "dispatch:loop": "node src/dispatcher.js --loop"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

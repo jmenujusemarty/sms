@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SMS Bridge Admin</title>
+    <link rel="stylesheet" href="/public/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <div>
+          <p class="eyebrow">macOS SMS</p>
+          <h1>Bridge Admin</h1>
+        </div>
+        <nav>
+          <a href="#overview">Overview</a>
+          <a href="#contacts">Contacts</a>
+          <a href="#templates">Templates</a>
+          <a href="#campaigns">Campaigns</a>
+          <a href="#queue">Queue</a>
+          <a href="#audit">Audit</a>
+        </nav>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Operator workspace</p>
+            <h2 id="current-title">Backend status</h2>
+          </div>
+          <form id="login-form" class="login">
+            <input name="email" type="email" placeholder="admin@example.local" autocomplete="username">
+            <input name="password" type="password" placeholder="ChangeMe123!" autocomplete="current-password">
+            <button type="submit">Login</button>
+          </form>
+        </header>
+
+        <section id="notice" class="notice">Login required.</section>
+
+        <section id="overview" class="panel">
+          <div class="section-head">
+            <h3>Overview</h3>
+            <button id="refresh">Refresh</button>
+          </div>
+          <div id="metrics" class="metrics"></div>
+        </section>
+
+        <section id="contacts" class="panel two-col">
+          <div>
+            <h3>Contacts</h3>
+            <form id="contact-form" class="stack">
+              <input name="name" placeholder="Name" required>
+              <input name="phone" placeholder="+420777123456" required>
+              <input name="email" placeholder="Email">
+              <label class="check"><input name="marketingConsent" type="checkbox"> Marketing consent</label>
+              <input name="consentSource" placeholder="Consent source">
+              <button type="submit">Save contact</button>
+            </form>
+          </div>
+          <div id="contacts-list" class="table"></div>
+        </section>
+
+        <section id="templates" class="panel two-col">
+          <div>
+            <h3>Templates</h3>
+            <form id="template-form" class="stack">
+              <input name="name" placeholder="Template name" required>
+              <select name="kind">
+                <option value="service">Service</option>
+                <option value="campaign">Campaign</option>
+              </select>
+              <textarea name="body" placeholder="Hello {{name}}, ..." required></textarea>
+              <button type="submit">Create template</button>
+            </form>
+          </div>
+          <div id="templates-list" class="table"></div>
+        </section>
+
+        <section id="campaigns" class="panel two-col">
+          <div>
+            <h3>Groups and Campaigns</h3>
+            <form id="group-form" class="stack">
+              <input name="name" placeholder="Group name" required>
+              <input name="contactIds" placeholder="Contact IDs comma separated">
+              <button type="submit">Create group</button>
+            </form>
+            <form id="campaign-form" class="stack">
+              <input name="name" placeholder="Campaign name" required>
+              <input name="groupId" placeholder="Group ID" required>
+              <input name="templateId" placeholder="Template ID" required>
+              <button type="submit">Create campaign</button>
+            </form>
+          </div>
+          <div>
+            <div id="groups-list" class="table"></div>
+            <div id="campaigns-list" class="table"></div>
+          </div>
+        </section>
+
+        <section id="queue" class="panel">
+          <div class="section-head">
+            <h3>Queue</h3>
+            <button id="dispatch">Dispatch once</button>
+          </div>
+          <form id="message-form" class="inline-form">
+            <input name="to" placeholder="+420777123456" required>
+            <select name="kind">
+              <option value="service">Service</option>
+              <option value="campaign">Campaign</option>
+            </select>
+            <input name="text" placeholder="Message text" required>
+            <button type="submit">Queue</button>
+          </form>
+          <div id="messages-list" class="table"></div>
+        </section>
+
+        <section id="audit" class="panel">
+          <h3>Audit</h3>
+          <div id="audit-list" class="table"></div>
+        </section>
+      </section>
+    </main>
+    <script src="/public/admin.js"></script>
+  </body>
+</html>
