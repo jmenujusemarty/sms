@@ -1,2 +1,6 @@
 data/*.json
-
+data/*.sqlite
+data/*.sqlite-*
+backups/
+logs/
+launchd/*.plist

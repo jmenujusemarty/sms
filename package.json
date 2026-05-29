@@ -7,10 +7,12 @@
     "test": "node --test",
     "server": "node src/server.js",
     "dispatch": "node src/dispatcher.js --once",
-    "dispatch:loop": "node src/dispatcher.js --loop"
+    "dispatch:loop": "node src/dispatcher.js --loop",
+    "db:migrate": "node scripts/db-migrate.js",
+    "db:import-json": "node scripts/db-import-json.js",
+    "launchd:print": "node scripts/launchd-print.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.5"
   }
 }
-

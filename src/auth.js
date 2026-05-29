@@ -59,6 +59,25 @@ export async function createUser(state, input, actor, now = new Date()) {
   return publicUser(user);
 }
 
+export function issueApiToken(state, input, actor, now = new Date()) {
+  requireRole(actor, "admin");
+  const token = crypto.randomBytes(32).toString("hex");
+  const record = createApiTokenRecord(token, actor.id, String(input.name || "API token").trim(), now);
+  state.apiTokens.push(record);
+  audit(state, actor, "token.created", { tokenId: record.id, name: record.name }, now);
+  return { token, record: publicApiToken(record) };
+}
+
+export function revokeApiToken(state, tokenId, actor, now = new Date()) {
+  requireRole(actor, "admin");
+  const record = state.apiTokens.find((item) => item.id === tokenId);
+  if (!record) throw new Error("token not found");
+  record.active = false;
+  record.revokedAt = now.toISOString();
+  audit(state, actor, "token.revoked", { tokenId }, now);
+  return publicApiToken(record);
+}
+
 export async function login(state, email, password, now = new Date()) {
   const user = state.users.find((item) => item.email === normalizeEmail(email) && item.active);
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
@@ -102,6 +121,18 @@ export function publicUser(user) {
     name: user.name,
     role: user.role,
     active: user.active
+  };
+}
+
+export function publicApiToken(record) {
+  return {
+    id: record.id,
+    userId: record.userId,
+    name: record.name,
+    active: record.active,
+    createdAt: record.createdAt,
+    revokedAt: record.revokedAt || null,
+    lastUsedAt: record.lastUsedAt || null
   };
 }
 

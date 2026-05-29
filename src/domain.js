@@ -127,6 +127,17 @@ export function appendEvent(state, type, messageId, details, now = new Date()) {
   return item;
 }
 
+export function cancelMessage(state, messageId, actor, now = new Date()) {
+  const message = state.messages.find((item) => item.id === messageId);
+  if (!message) throw new Error("message not found");
+  if (!["queued", "retry"].includes(message.status)) throw new Error("message cannot be cancelled");
+  message.status = "cancelled";
+  message.updatedAt = now.toISOString();
+  audit(state, actor, "message.cancelled", { messageId }, now);
+  appendEvent(state, "cancelled", messageId, {}, now);
+  return message;
+}
+
 export function renderTemplate(body, contact) {
   return body.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_match, key) => {
     if (key === "name") return contact.name;

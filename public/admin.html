@@ -19,6 +19,8 @@
           <a href="#templates">Templates</a>
           <a href="#campaigns">Campaigns</a>
           <a href="#queue">Queue</a>
+          <a href="#blacklist">Blacklist</a>
+          <a href="#tokens">Tokens</a>
           <a href="#audit">Audit</a>
         </nav>
       </aside>
@@ -44,6 +46,7 @@
             <button id="refresh">Refresh</button>
           </div>
           <div id="metrics" class="metrics"></div>
+          <div id="settings-list" class="table"></div>
         </section>
 
         <section id="contacts" class="panel two-col">
@@ -82,13 +85,13 @@
             <h3>Groups and Campaigns</h3>
             <form id="group-form" class="stack">
               <input name="name" placeholder="Group name" required>
-              <input name="contactIds" placeholder="Contact IDs comma separated">
+              <select name="contactIds" id="group-contacts" multiple></select>
               <button type="submit">Create group</button>
             </form>
             <form id="campaign-form" class="stack">
               <input name="name" placeholder="Campaign name" required>
-              <input name="groupId" placeholder="Group ID" required>
-              <input name="templateId" placeholder="Template ID" required>
+              <select name="groupId" id="campaign-group" required></select>
+              <select name="templateId" id="campaign-template" required></select>
               <button type="submit">Create campaign</button>
             </form>
           </div>
@@ -113,6 +116,29 @@
             <button type="submit">Queue</button>
           </form>
           <div id="messages-list" class="table"></div>
+        </section>
+
+        <section id="blacklist" class="panel two-col">
+          <div>
+            <h3>Blacklist</h3>
+            <form id="blacklist-form" class="stack">
+              <input name="phone" placeholder="+420777123456" required>
+              <input name="reason" placeholder="Reason">
+              <button type="submit">Add to blacklist</button>
+            </form>
+          </div>
+          <div id="blacklist-list" class="table"></div>
+        </section>
+
+        <section id="tokens" class="panel two-col">
+          <div>
+            <h3>API Tokens</h3>
+            <form id="token-form" class="stack">
+              <input name="name" placeholder="Integration name" required>
+              <button type="submit">Create token</button>
+            </form>
+          </div>
+          <div id="tokens-list" class="table"></div>
         </section>
 
         <section id="audit" class="panel">

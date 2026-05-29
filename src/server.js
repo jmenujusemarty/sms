@@ -6,8 +6,8 @@ import { loadConfig } from "./config.js";
 import { addToBlacklist, createStore, enqueueMessage } from "./store.js";
 import { createSender } from "./senders/index.js";
 import { dispatchOnce } from "./dispatcher.js";
-import { addCampaign, addGroup, addTemplate, audit, upsertContact } from "./domain.js";
-import { authenticate, createUser, ensureBootstrapAdmin, login, publicUser, requireRole } from "./auth.js";
+import { addCampaign, addGroup, addTemplate, audit, cancelMessage, upsertContact } from "./domain.js";
+import { authenticate, createUser, ensureBootstrapAdmin, issueApiToken, login, publicApiToken, publicUser, requireRole, revokeApiToken } from "./auth.js";
 import { queueCampaign } from "./campaigns.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -54,6 +54,17 @@ export async function createServer(overrides = {}) {
         return json(res, 200, summarize(current));
       }
 
+      if (req.method === "GET" && url.pathname === "/api/settings") {
+        requireRole(actor, "viewer");
+        return json(res, 200, safeSettings(config, sender.name));
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/metrics") {
+        requireRole(actor, "viewer");
+        const current = await store.read();
+        return json(res, 200, metrics(current, config));
+      }
+
       if (req.method === "GET" && url.pathname === "/api/users") {
         requireRole(actor, "admin");
         return json(res, 200, { users: state.users.map(publicUser) });
@@ -63,6 +74,25 @@ export async function createServer(overrides = {}) {
         const body = await readJson(req);
         const user = await store.mutate((current) => createUser(current, body, actor));
         return json(res, 201, { user });
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/tokens") {
+        requireRole(actor, "admin");
+        return json(res, 200, { tokens: state.apiTokens.map(publicApiToken) });
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/tokens") {
+        requireRole(actor, "admin");
+        const body = await readJson(req);
+        const result = await store.mutate((current) => issueApiToken(current, body, actor));
+        return json(res, 201, result);
+      }
+
+      const tokenRevokeMatch = /^\/api\/tokens\/([^/]+)\/revoke$/.exec(url.pathname);
+      if (req.method === "POST" && tokenRevokeMatch) {
+        requireRole(actor, "admin");
+        const record = await store.mutate((current) => revokeApiToken(current, tokenRevokeMatch[1], actor));
+        return json(res, 200, { record });
       }
 
       if (req.method === "GET" && url.pathname === "/api/contacts") {
@@ -125,6 +155,13 @@ export async function createServer(overrides = {}) {
         return json(res, 200, { messages: state.messages.slice(-250).reverse() });
       }
 
+      const cancelMatch = /^\/api\/messages\/([^/]+)\/cancel$/.exec(url.pathname);
+      if (req.method === "POST" && cancelMatch) {
+        requireRole(actor, "operator");
+        const message = await store.mutate((current) => cancelMessage(current, cancelMatch[1], actor));
+        return json(res, 200, { message });
+      }
+
       if (req.method === "POST" && (url.pathname === "/messages" || url.pathname === "/api/messages")) {
         requireRole(actor, "operator");
         const body = await readJson(req);
@@ -157,11 +194,69 @@ export async function createServer(overrides = {}) {
         return json(res, 200, { audit: state.audit.slice(-250).reverse() });
       }
 
+      if (req.method === "POST" && url.pathname === "/api/import/json") {
+        requireRole(actor, "admin");
+        const body = await readJson(req);
+        const result = await store.importJson(config.legacyJsonFile, { force: Boolean(body.force) });
+        await store.mutate((current) => audit(current, actor, "import.json", result));
+        return json(res, 200, result);
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/exports/blacklist") {
+        requireRole(actor, "admin");
+        return json(res, 200, { exportedAt: new Date().toISOString(), blacklist: state.blacklist });
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/exports/audit") {
+        requireRole(actor, "admin");
+        return json(res, 200, { exportedAt: new Date().toISOString(), audit: state.audit });
+      }
+
       return json(res, 404, { error: "not found" });
     } catch (error) {
       return json(res, httpStatus(error), { error: error.message });
     }
   });
+}
+
+function safeSettings(config, senderName) {
+  return {
+    host: config.host,
+    port: config.port,
+    sender: senderName,
+    dataFile: config.dataFile,
+    legacyJsonFile: config.legacyJsonFile,
+    serviceDailyLimit: config.serviceDailyLimit,
+    campaignDailyLimit: config.campaignDailyLimit,
+    serviceMinGapSeconds: config.serviceMinGapSeconds,
+    campaignMinGapSeconds: config.campaignMinGapSeconds,
+    quietHoursStart: config.quietHoursStart,
+    quietHoursEnd: config.quietHoursEnd,
+    allowCampaignDuringQuietHours: config.allowCampaignDuringQuietHours,
+    maxAttempts: config.maxAttempts,
+    dispatchIntervalMs: config.dispatchIntervalMs
+  };
+}
+
+function metrics(state, config) {
+  const summary = summarize(state);
+  const retryMessages = state.messages.filter((message) => message.status === "retry");
+  const failedMessages = state.messages.filter((message) => message.status === "failed");
+  return {
+    ...summary,
+    limits: {
+      serviceDailyLimit: config.serviceDailyLimit,
+      campaignDailyLimit: config.campaignDailyLimit,
+      serviceMinGapSeconds: config.serviceMinGapSeconds,
+      campaignMinGapSeconds: config.campaignMinGapSeconds,
+      maxAttempts: config.maxAttempts
+    },
+    queue: {
+      retry: retryMessages.length,
+      failed: failedMessages.length,
+      nextRetryAt: retryMessages.map((message) => message.nextAttemptAt).filter(Boolean).sort()[0] || null
+    }
+  };
 }
 
 function summarize(state) {

@@ -26,32 +26,44 @@ bindForm("#contact-form", "/api/contacts", (data) => ({
 bindForm("#template-form", "/api/templates");
 bindForm("#group-form", "/api/groups", (data) => ({
   ...data,
-  contactIds: data.contactIds ? data.contactIds.split(",").map((item) => item.trim()).filter(Boolean) : []
+  contactIds: selectedValues("#group-contacts")
 }));
 bindForm("#campaign-form", "/api/campaigns");
 bindForm("#message-form", "/api/messages");
+bindForm("#blacklist-form", "/api/blacklist");
+bindForm("#token-form", "/api/tokens", (data) => ({ name: data.name }));
 
 async function refreshAll() {
-  const [status, contacts, groups, templates, campaigns, messages, audit] = await Promise.all([
+  const [status, settings, metrics, contacts, groups, templates, campaigns, messages, blacklist, tokens, audit] = await Promise.all([
     api("/api/status"),
+    api("/api/settings"),
+    api("/api/metrics"),
     api("/api/contacts"),
     api("/api/groups"),
     api("/api/templates"),
     api("/api/campaigns"),
     api("/api/messages"),
+    api("/api/blacklist"),
+    api("/api/tokens").catch(() => ({ tokens: [] })),
     api("/api/audit").catch(() => ({ audit: [] }))
   ]);
 
-  renderMetrics(status.totals, status.byStatus);
+  renderMetrics(status.totals, status.byStatus, metrics.queue);
+  renderSettings(settings);
   renderTable("#contacts-list", contacts.contacts, ["id", "name", "phone", "marketingConsent"]);
   renderTable("#groups-list", groups.groups, ["id", "name", "contactIds"]);
   renderTable("#templates-list", templates.templates, ["id", "name", "kind", "body"]);
+  fillSelect("#group-contacts", contacts.contacts, "id", (contact) => `${contact.name} ${contact.phone}`);
+  fillSelect("#campaign-group", groups.groups, "id", (group) => group.name);
+  fillSelect("#campaign-template", templates.templates.filter((template) => template.kind === "campaign"), "id", (template) => template.name);
   renderCampaigns(campaigns.campaigns);
-  renderTable("#messages-list", messages.messages, ["id", "to", "kind", "status", "lastError"]);
+  renderMessages(messages.messages);
+  renderTable("#blacklist-list", blacklist.blacklist.map((phone) => ({ phone })), ["phone"]);
+  renderTokens(tokens.tokens);
   renderTable("#audit-list", audit.audit, ["createdAt", "action", "actorRole", "details"]);
 }
 
-function renderMetrics(totals, byStatus) {
+function renderMetrics(totals, byStatus, queue) {
   const items = [
     ["Contacts", totals.contacts],
     ["Campaigns", totals.campaigns],
@@ -60,11 +72,24 @@ function renderMetrics(totals, byStatus) {
     ["Sent", byStatus.sent || 0],
     ["Failed", byStatus.retry || 0],
     ["Blacklist", totals.blacklist],
-    ["Audit", totals.audit]
+    ["Audit", totals.audit],
+    ["Next retry", queue?.nextRetryAt || "none"]
   ];
   $("#metrics").innerHTML = items.map(([label, value]) => (
     `<div class="metric"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`
   )).join("");
+}
+
+function renderSettings(settings) {
+  const rows = [
+    { key: "Sender", value: settings.sender },
+    { key: "DB", value: settings.dataFile },
+    { key: "Quiet hours", value: `${settings.quietHoursStart} - ${settings.quietHoursEnd}` },
+    { key: "Service limit", value: settings.serviceDailyLimit },
+    { key: "Campaign limit", value: settings.campaignDailyLimit },
+    { key: "Max attempts", value: settings.maxAttempts }
+  ];
+  renderTable("#settings-list", rows, ["key", "value"]);
 }
 
 function renderCampaigns(campaigns) {
@@ -80,6 +105,43 @@ function renderCampaigns(campaigns) {
     button.addEventListener("click", async () => {
       const result = await api(`/api/campaigns/${button.dataset.queue}/queue`, { method: "POST" });
       note(`Queued ${result.queued.length}, skipped ${result.skipped.length}`, true);
+      await refreshAll();
+    });
+  });
+}
+
+function renderMessages(messages) {
+  const rows = messages.map((message) => ({
+    id: message.id,
+    to: message.to,
+    kind: message.kind,
+    status: message.status,
+    lastError: message.lastError || "",
+    action: ["queued", "retry"].includes(message.status) ? `<button data-cancel="${message.id}">Cancel</button>` : ""
+  }));
+  renderTable("#messages-list", rows, ["id", "to", "kind", "status", "lastError", "action"], false);
+  document.querySelectorAll("[data-cancel]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const result = await api(`/api/messages/${button.dataset.cancel}/cancel`, { method: "POST" });
+      note(`Cancelled ${result.message.id}`, true);
+      await refreshAll();
+    });
+  });
+}
+
+function renderTokens(tokens) {
+  const rows = tokens.map((tokenRecord) => ({
+    id: tokenRecord.id,
+    name: tokenRecord.name,
+    active: tokenRecord.active,
+    lastUsedAt: tokenRecord.lastUsedAt || "",
+    action: tokenRecord.active ? `<button data-revoke="${tokenRecord.id}">Revoke</button>` : ""
+  }));
+  renderTable("#tokens-list", rows, ["id", "name", "active", "lastUsedAt", "action"], false);
+  document.querySelectorAll("[data-revoke]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await api(`/api/tokens/${button.dataset.revoke}/revoke`, { method: "POST" });
+      note("Token revoked.", true);
       await refreshAll();
     });
   });
@@ -134,6 +196,21 @@ function formData(form) {
     data[checkbox.name] = checkbox.checked;
   }
   return data;
+}
+
+function selectedValues(selector) {
+  return [...document.querySelector(selector).selectedOptions].map((option) => option.value);
+}
+
+function fillSelect(selector, rows, valueKey, labelFn) {
+  const select = document.querySelector(selector);
+  const selected = new Set([...select.selectedOptions].map((option) => option.value));
+  select.innerHTML = rows.map((row) => {
+    const value = row[valueKey];
+    const label = labelFn(row);
+    const isSelected = selected.has(value) ? " selected" : "";
+    return `<option value="${escapeHtml(value)}"${isSelected}>${escapeHtml(label)}</option>`;
+  }).join("");
 }
 
 function note(message, ok) {
