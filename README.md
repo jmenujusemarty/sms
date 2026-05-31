@@ -79,15 +79,69 @@ curl -s -X POST http://127.0.0.1:8787/api/dispatch \
   -H "authorization: Bearer $TOKEN"
 ```
 
+## CSV import kontaktů
+
+Admin UI má sekci `Import`, kde vložíš CSV, zobrazíš preview a jedním krokem vytvoříš kontakty i skupinu.
+
+Povinné sloupce:
+
+- `name`
+- `phone`
+
+Doporučené sloupce:
+
+- `email`
+- `marketingConsent`
+- `consentSource`
+
+Další sloupce se uloží do `fields` a můžeš je použít v šablonách jako `{{fields.city}}`.
+
+Ukázka:
+
+```csv
+name,phone,email,marketingConsent,consentSource,city
+Jana,+420777123456,jana@example.cz,yes,web,Praha
+Petr,+420777222333,petr@example.cz,no,manual,Brno
+```
+
+API preview:
+
+```bash
+curl -s http://127.0.0.1:8787/api/import/contacts/preview \
+  -H "authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"csv":"name,phone\nJana,+420777123456"}'
+```
+
+API commit importu:
+
+```bash
+curl -s http://127.0.0.1:8787/api/import/contacts/commit \
+  -H "authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"groupName":"CSV Import","csv":"name,phone,marketingConsent\nJana,+420777123456,yes"}'
+```
+
+## Náhled kampaně
+
+Před zařazením kampaně do fronty lze zobrazit počet odesílatelných kontaktů, přeskočené příjemce a ukázky vyrenderovaných zpráv.
+
+```bash
+curl -s http://127.0.0.1:8787/api/campaigns/<campaign-id>/preview \
+  -H "authorization: Bearer $TOKEN"
+```
+
 ## Backend funkce
 
 - Multi-user model s rolemi `admin`, `operator`, `viewer`.
 - Session login a bearer API tokeny.
 - SQLite databáze v `data/sms-bridge.sqlite`.
+- CSV import kontaktů s preview, validací a deduplikací.
 - Kontakty s marketingovým souhlasem.
 - Skupiny kontaktů.
 - Šablony s proměnnými `{{name}}`, `{{phone}}`, `{{fields.city}}`.
 - Kampaně, které frontují jen kontakty se souhlasem.
+- Náhled kampaně před zařazením do fronty.
 - Servisní a marketingová fronta s oddělenými limity.
 - Blacklist a audit log.
 - Statické admin UI bez build kroku.

@@ -15,6 +15,7 @@
         </div>
         <nav>
           <a href="#overview">Overview</a>
+          <a href="#import">Import</a>
           <a href="#contacts">Contacts</a>
           <a href="#templates">Templates</a>
           <a href="#campaigns">Campaigns</a>
@@ -47,6 +48,21 @@
           </div>
           <div id="metrics" class="metrics"></div>
           <div id="settings-list" class="table"></div>
+        </section>
+
+        <section id="import" class="panel two-col">
+          <div>
+            <h3>CSV Import</h3>
+            <form id="import-form" class="stack">
+              <input name="groupName" placeholder="New group name">
+              <textarea name="csv" placeholder="name,phone,email,marketingConsent,consentSource&#10;Jana,+420777123456,jana@example.cz,yes,web" required></textarea>
+              <div class="button-row">
+                <button type="button" id="preview-import">Preview</button>
+                <button type="submit">Commit import</button>
+              </div>
+            </form>
+          </div>
+          <div id="import-preview" class="table"></div>
         </section>
 
         <section id="contacts" class="panel two-col">
@@ -98,6 +114,7 @@
           <div>
             <div id="groups-list" class="table"></div>
             <div id="campaigns-list" class="table"></div>
+            <div id="campaign-preview" class="table"></div>
           </div>
         </section>
 

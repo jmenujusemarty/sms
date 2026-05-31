@@ -18,6 +18,11 @@ $("#dispatch").addEventListener("click", async () => {
   note(`Dispatch result: ${result.status}`, result.status !== "failed");
   await refreshAll();
 });
+$("#preview-import").addEventListener("click", async () => {
+  const data = formData($("#import-form"));
+  const result = await api("/api/import/contacts/preview", { method: "POST", body: { csv: data.csv } });
+  renderImportPreview(result);
+});
 
 bindForm("#contact-form", "/api/contacts", (data) => ({
   ...data,
@@ -32,6 +37,10 @@ bindForm("#campaign-form", "/api/campaigns");
 bindForm("#message-form", "/api/messages");
 bindForm("#blacklist-form", "/api/blacklist");
 bindForm("#token-form", "/api/tokens", (data) => ({ name: data.name }));
+bindForm("#import-form", "/api/import/contacts/commit", (data) => ({
+  csv: data.csv,
+  groupName: data.groupName
+}));
 
 async function refreshAll() {
   const [status, settings, metrics, contacts, groups, templates, campaigns, messages, blacklist, tokens, audit] = await Promise.all([
@@ -61,6 +70,23 @@ async function refreshAll() {
   renderTable("#blacklist-list", blacklist.blacklist.map((phone) => ({ phone })), ["phone"]);
   renderTokens(tokens.tokens);
   renderTable("#audit-list", audit.audit, ["createdAt", "action", "actorRole", "details"]);
+}
+
+function renderImportPreview(result) {
+  const rows = [
+    { metric: "Rows", value: result.summary.totalRows },
+    { metric: "Valid", value: result.summary.valid },
+    { metric: "Invalid", value: result.summary.invalid },
+    { metric: "Duplicates in file", value: result.summary.duplicatesInFile },
+    { metric: "Existing phones", value: result.summary.duplicatesExisting }
+  ];
+  const invalidRows = result.invalid.map((item) => ({
+    row: item.rowNumber,
+    phone: item.contact.phone || "",
+    errors: item.errors.join(", ")
+  }));
+  $("#import-preview").innerHTML = tableHtml(rows, ["metric", "value"]) +
+    (invalidRows.length ? tableHtml(invalidRows, ["row", "phone", "errors"]) : "<p class=\"eyebrow\">Ready to import</p>");
 }
 
 function renderMetrics(totals, byStatus, queue) {
@@ -98,9 +124,15 @@ function renderCampaigns(campaigns) {
     name: campaign.name,
     status: campaign.status,
     queued: campaign.queuedMessageIds.length,
-    action: campaign.status === "draft" ? `<button data-queue="${campaign.id}">Queue</button>` : ""
+    action: `<button data-preview-campaign="${campaign.id}">Preview</button> ${campaign.status === "draft" ? `<button data-queue="${campaign.id}">Queue</button>` : ""}`
   }));
   renderTable("#campaigns-list", rows, ["id", "name", "status", "queued", "action"], false);
+  document.querySelectorAll("[data-preview-campaign]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const result = await api(`/api/campaigns/${button.dataset.previewCampaign}/preview`);
+      renderCampaignPreview(result);
+    });
+  });
   document.querySelectorAll("[data-queue]").forEach((button) => {
     button.addEventListener("click", async () => {
       const result = await api(`/api/campaigns/${button.dataset.queue}/queue`, { method: "POST" });
@@ -108,6 +140,29 @@ function renderCampaigns(campaigns) {
       await refreshAll();
     });
   });
+}
+
+function renderCampaignPreview(result) {
+  const summaryRows = [
+    { metric: "Contacts", value: result.summary.totalContacts },
+    { metric: "Sendable", value: result.summary.sendable },
+    { metric: "Skipped", value: result.summary.skipped },
+    { metric: "Missing consent", value: result.summary.missingConsent },
+    { metric: "Blacklisted", value: result.summary.blacklisted }
+  ];
+  const sampleRows = result.recipients.map((recipient) => ({
+    name: recipient.name,
+    phone: recipient.phone,
+    text: recipient.text
+  }));
+  const skippedRows = result.skipped.map((item) => ({
+    phone: item.phone,
+    reason: item.reason
+  }));
+  $("#campaign-preview").innerHTML = "<h3>Campaign preview</h3>" +
+    tableHtml(summaryRows, ["metric", "value"]) +
+    (sampleRows.length ? tableHtml(sampleRows, ["name", "phone", "text"]) : "<p class=\"eyebrow\">No sendable recipients</p>") +
+    (skippedRows.length ? tableHtml(skippedRows, ["phone", "reason"]) : "");
 }
 
 function renderMessages(messages) {
@@ -152,6 +207,10 @@ function renderTable(selector, rows, columns, escape = true) {
     $(selector).innerHTML = "<p class=\"eyebrow\">No records</p>";
     return;
   }
+  $(selector).innerHTML = tableHtml(rows, columns, escape);
+}
+
+function tableHtml(rows, columns, escape = true) {
   const head = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
   const body = rows.map((row) => {
     return `<tr>${columns.map((column) => {
@@ -160,7 +219,7 @@ function renderTable(selector, rows, columns, escape = true) {
       return `<td>${escape ? escapeHtml(value) : value}</td>`;
     }).join("")}</tr>`;
   }).join("");
-  $(selector).innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function bindForm(selector, url, transform = (data) => data) {

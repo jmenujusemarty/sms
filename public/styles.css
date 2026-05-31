@@ -166,6 +166,12 @@ nav a {
   margin-top: 14px;
 }
 
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .check {
   display: flex;
   gap: 8px;

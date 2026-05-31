@@ -8,7 +8,8 @@ import { createSender } from "./senders/index.js";
 import { dispatchOnce } from "./dispatcher.js";
 import { addCampaign, addGroup, addTemplate, audit, cancelMessage, upsertContact } from "./domain.js";
 import { authenticate, createUser, ensureBootstrapAdmin, issueApiToken, login, publicApiToken, publicUser, requireRole, revokeApiToken } from "./auth.js";
-import { queueCampaign } from "./campaigns.js";
+import { previewCampaign, queueCampaign } from "./campaigns.js";
+import { commitContactImport, previewContactImport } from "./importContacts.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(rootDir, "public");
@@ -107,6 +108,19 @@ export async function createServer(overrides = {}) {
         return json(res, 201, { contact });
       }
 
+      if (req.method === "POST" && url.pathname === "/api/import/contacts/preview") {
+        requireRole(actor, "operator");
+        const body = await readJson(req);
+        return json(res, 200, previewContactImport(state, body.csv));
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/import/contacts/commit") {
+        requireRole(actor, "operator");
+        const body = await readJson(req);
+        const result = await store.mutate((current) => commitContactImport(current, body, actor));
+        return json(res, 201, result);
+      }
+
       if (req.method === "GET" && url.pathname === "/api/groups") {
         requireRole(actor, "viewer");
         return json(res, 200, { groups: state.groups });
@@ -148,6 +162,12 @@ export async function createServer(overrides = {}) {
         requireRole(actor, "operator");
         const result = await store.mutate((current) => queueCampaign(current, queueMatch[1], actor));
         return json(res, 200, result);
+      }
+
+      const previewMatch = /^\/api\/campaigns\/([^/]+)\/preview$/.exec(url.pathname);
+      if (req.method === "GET" && previewMatch) {
+        requireRole(actor, "viewer");
+        return json(res, 200, previewCampaign(state, previewMatch[1]));
       }
 
       if (req.method === "GET" && url.pathname === "/api/messages") {
